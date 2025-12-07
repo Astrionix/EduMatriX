@@ -56,9 +56,9 @@ export function DashboardShell({ children }: { children: React.ReactNode }) {
 
     return (
         <div className="grid h-screen w-full md:grid-cols-[220px_1fr] lg:grid-cols-[280px_1fr] overflow-hidden">
-            <div className="hidden border-r bg-muted/40 md:block overflow-y-auto">
+            <div className="hidden bg-muted/40 md:block overflow-y-auto">
                 <div className="flex h-full max-h-screen flex-col gap-2">
-                    <div className="flex h-14 items-center border-b px-4 lg:h-[60px] lg:px-6">
+                    <div className="flex h-14 items-center px-4 lg:h-[60px] lg:px-6">
                         <Link href="/" className="flex items-center gap-2 font-semibold">
                             <PremiumLogo />
                         </Link>
@@ -77,7 +77,7 @@ export function DashboardShell({ children }: { children: React.ReactNode }) {
                 </div>
             </div>
             <div className="flex flex-col h-full overflow-hidden">
-                <header className="flex h-14 items-center gap-4 border-b bg-muted/40 px-4 lg:h-[60px] lg:px-6">
+                <header className="flex h-14 items-center gap-4 bg-muted/40 px-4 lg:h-[60px] lg:px-6">
                     <div className="w-full flex-1">
                         <Button
                             variant="outline"

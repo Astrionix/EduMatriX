@@ -4,7 +4,7 @@ import { useEffect, useState } from "react"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
 import { createClient } from "@/lib/supabase/client"
-import { PlusCircle, Upload, Users, AlertTriangle, TrendingUp } from "lucide-react"
+import { PlusCircle, AlertTriangle, TrendingUp, Sparkles } from "lucide-react"
 import Link from "next/link"
 import { Bar, BarChart, ResponsiveContainer, XAxis, YAxis, Tooltip } from "recharts"
 import { AnnouncementList } from "@/components/dashboard/announcement-list"
@@ -84,23 +84,22 @@ export default function FacultyDashboard() {
             className="space-y-6"
         >
             {/* Quick Actions Row */}
+            {/* Quick Actions Row */}
             <div className="flex flex-wrap gap-4">
-                <Button className="flex-1 h-auto py-4 flex flex-col items-center gap-2" variant="outline" asChild>
+                <Button className="flex-1 h-auto py-6 flex flex-col items-center gap-2 text-base hover:shadow-lg transition-all" variant="outline" asChild>
                     <Link href="/faculty/assignments">
-                        <PlusCircle className="h-6 w-6 text-primary" />
+                        <div className="h-10 w-10 rounded-full bg-primary/10 flex items-center justify-center mb-1">
+                            <PlusCircle className="h-6 w-6 text-primary" />
+                        </div>
                         <span>Create Assignment</span>
                     </Link>
                 </Button>
-                <Button className="flex-1 h-auto py-4 flex flex-col items-center gap-2" variant="outline" asChild>
+                <Button className="flex-1 h-auto py-6 flex flex-col items-center gap-2 text-base hover:shadow-lg transition-all" variant="outline" asChild>
                     <Link href="/faculty/uploads">
-                        <Upload className="h-6 w-6 text-blue-500" />
-                        <span>Upload Material</span>
-                    </Link>
-                </Button>
-                <Button className="flex-1 h-auto py-4 flex flex-col items-center gap-2" variant="outline" asChild>
-                    <Link href="/faculty/attendance">
-                        <Users className="h-6 w-6 text-green-500" />
-                        <span>Mark Attendance</span>
+                        <div className="h-10 w-10 rounded-full bg-blue-500/10 flex items-center justify-center mb-1">
+                            <Sparkles className="h-6 w-6 text-blue-500" />
+                        </div>
+                        <span>Upload & AI Index</span>
                     </Link>
                 </Button>
             </div>

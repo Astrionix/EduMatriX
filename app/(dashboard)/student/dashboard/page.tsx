@@ -3,11 +3,9 @@
 import { useEffect, useState } from "react"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
-import { CurrentClasses } from "@/components/student/current-classes"
-import { AssignmentCalendar } from "@/components/dashboard/assignment-calendar"
 import { AnnouncementList } from "@/components/dashboard/announcement-list"
 import { createClient } from "@/lib/supabase/client"
-import { PlayCircle, Clock, Trophy, Flame, ArrowRight, FileText } from "lucide-react"
+import { PlayCircle, Clock, Trophy, Flame, ArrowRight, FileText, BookOpen, MessageSquare, Sparkles } from "lucide-react"
 import Link from "next/link"
 import { motion } from "framer-motion"
 
@@ -16,6 +14,7 @@ interface DashboardData {
     upcomingAssignments: { id: string; title: string; due_date: string; subject: string }[]
     totalPoints: number
     streak: number
+    enrolledCount: number
 }
 
 export default function StudentDashboard() {
@@ -23,7 +22,8 @@ export default function StudentDashboard() {
         latestMaterial: null,
         upcomingAssignments: [],
         totalPoints: 0,
-        streak: 5 // Mock streak for now
+        streak: 5,
+        enrolledCount: 0
     })
     const supabase = createClient()
 
@@ -32,21 +32,41 @@ export default function StudentDashboard() {
             const { data: { user } } = await supabase.auth.getUser()
             if (!user) return
 
-            // 1. Fetch latest material (mock: just get last uploaded material)
-            const { data: materials } = await supabase
-                .from('materials')
-                .select('title, file_url, subjects(name)')
-                .order('created_at', { ascending: false })
-                .limit(1)
-                .single()
+            // 0. Fetch Enrolled Subjects
+            const { data: enrollments } = await supabase
+                .from('enrollments')
+                .select('subject_id')
+                .eq('student_id', user.id)
 
-            // 2. Fetch upcoming assignments
-            const { data: assignments } = await supabase
-                .from('assignments')
-                .select('id, title, due_date, subjects(name)')
-                .gte('due_date', new Date().toISOString())
-                .order('due_date', { ascending: true })
-                .limit(3)
+            const enrolledSubjectIds = enrollments?.map(e => e.subject_id) || []
+
+            let materials = null
+            let assignments = []
+
+            // Only fetch content if the student is enrolled in subjects
+            if (enrolledSubjectIds.length > 0) {
+                // 1. Fetch latest material for enrolled subjects only
+                const { data: matResult } = await supabase
+                    .from('materials')
+                    .select('title, file_url, subjects!inner(name)')
+                    .in('subject_id', enrolledSubjectIds)
+                    .order('created_at', { ascending: false })
+                    .limit(1)
+                    .maybeSingle()
+
+                materials = matResult
+
+                // 2. Fetch upcoming assignments for enrolled subjects only
+                const { data: assignResult } = await supabase
+                    .from('assignments')
+                    .select('id, title, due_date, subjects!inner(name)')
+                    .in('subject_id', enrolledSubjectIds)
+                    .gte('due_date', new Date().toISOString())
+                    .order('due_date', { ascending: true })
+                    .limit(3)
+
+                assignments = assignResult || []
+            }
 
             // 3. Fetch Quiz Points
             const { data: quizResults } = await supabase
@@ -62,14 +82,15 @@ export default function StudentDashboard() {
                     subject: (materials.subjects as any)?.name,
                     url: materials.file_url
                 } : null,
-                upcomingAssignments: assignments?.map(a => ({
+                upcomingAssignments: assignments.map((a: any) => ({
                     id: a.id,
                     title: a.title,
                     due_date: a.due_date,
                     subject: (a.subjects as any)?.name
-                })) || [],
+                })),
                 totalPoints: points,
-                streak: 7
+                streak: 7,
+                enrolledCount: enrolledSubjectIds.length
             })
         }
         fetchData()
@@ -82,91 +103,125 @@ export default function StudentDashboard() {
             transition={{ duration: 0.5 }}
             className="space-y-6"
         >
-            {/* Welcome & Gamification Section */}
-            <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">
-                <Card className="bg-gradient-to-br from-indigo-500 to-purple-600 text-white border-none">
-                    <CardHeader className="pb-2">
-                        <CardTitle className="text-lg font-medium opacity-90">Total XP</CardTitle>
-                    </CardHeader>
-                    <CardContent>
-                        <div className="text-3xl font-bold flex items-center gap-2">
-                            <Trophy className="h-6 w-6 text-yellow-300" />
-                            {data.totalPoints}
-                        </div>
-                        <p className="text-xs opacity-70 mt-1">Top 10% of class</p>
-                    </CardContent>
-                </Card>
-                <Card className="bg-gradient-to-br from-orange-400 to-red-500 text-white border-none">
-                    <CardHeader className="pb-2">
-                        <CardTitle className="text-lg font-medium opacity-90">Learning Streak</CardTitle>
-                    </CardHeader>
-                    <CardContent>
-                        <div className="text-3xl font-bold flex items-center gap-2">
-                            <Flame className="h-6 w-6 text-yellow-200" />
-                            {data.streak} Days
-                        </div>
-                        <p className="text-xs opacity-70 mt-1">Keep it up!</p>
-                    </CardContent>
-                </Card>
+            {/* Welcome Header */}
+            <div className="relative overflow-hidden rounded-2xl bg-gradient-to-br from-blue-600 via-indigo-600 to-violet-500 p-8 text-white">
+                <div className="absolute inset-0 bg-[url('/grid.svg')] opacity-20" />
+                <div className="relative z-10">
+                    <h1 className="text-3xl font-bold mb-2">Welcome back! 👋</h1>
+                    <p className="text-white/80">
+                        You're enrolled in {data.enrolledCount} subject{data.enrolledCount !== 1 ? 's' : ''}. Keep learning!
+                    </p>
+                </div>
+                <Sparkles className="absolute right-8 top-8 h-24 w-24 text-white/10" />
+            </div>
 
-                {/* Resume Learning Card */}
-                <Card className="col-span-2 border-l-4 border-l-blue-500">
-                    <CardHeader className="pb-2">
-                        <CardTitle className="text-lg">Resume Learning</CardTitle>
-                        <CardDescription>Pick up where you left off</CardDescription>
-                    </CardHeader>
-                    <CardContent className="flex items-center justify-between">
-                        {data.latestMaterial ? (
-                            <div className="space-y-1">
-                                <h4 className="font-semibold">{data.latestMaterial.title}</h4>
-                                <p className="text-sm text-muted-foreground">{data.latestMaterial.subject}</p>
+            {/* Stats Row */}
+            <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+                <Card className="bg-gradient-to-br from-indigo-500 to-purple-600 text-white border-none shadow-lg">
+                    <CardContent className="p-4">
+                        <div className="flex items-center justify-between">
+                            <div>
+                                <p className="text-sm opacity-80">Total XP</p>
+                                <p className="text-2xl font-bold">{data.totalPoints}</p>
                             </div>
-                        ) : (
-                            <p className="text-sm text-muted-foreground">No recent materials found.</p>
-                        )}
-                        {data.latestMaterial && (
-                            <Button size="sm" asChild>
-                                <a href={data.latestMaterial.url} target="_blank" rel="noopener noreferrer">
-                                    <PlayCircle className="mr-2 h-4 w-4" />
-                                    Continue
-                                </a>
-                            </Button>
-                        )}
+                            <Trophy className="h-8 w-8 text-yellow-300" />
+                        </div>
+                    </CardContent>
+                </Card>
+                <Card className="bg-gradient-to-br from-orange-400 to-red-500 text-white border-none shadow-lg">
+                    <CardContent className="p-4">
+                        <div className="flex items-center justify-between">
+                            <div>
+                                <p className="text-sm opacity-80">Streak</p>
+                                <p className="text-2xl font-bold">{data.streak} days</p>
+                            </div>
+                            <Flame className="h-8 w-8 text-yellow-200" />
+                        </div>
+                    </CardContent>
+                </Card>
+                <Card className="bg-gradient-to-br from-emerald-500 to-teal-500 text-white border-none shadow-lg">
+                    <CardContent className="p-4">
+                        <div className="flex items-center justify-between">
+                            <div>
+                                <p className="text-sm opacity-80">Subjects</p>
+                                <p className="text-2xl font-bold">{data.enrolledCount}</p>
+                            </div>
+                            <BookOpen className="h-8 w-8 text-emerald-200" />
+                        </div>
+                    </CardContent>
+                </Card>
+                <Card className="bg-gradient-to-br from-pink-500 to-rose-500 text-white border-none shadow-lg">
+                    <CardContent className="p-4">
+                        <div className="flex items-center justify-between">
+                            <div>
+                                <p className="text-sm opacity-80">Due Soon</p>
+                                <p className="text-2xl font-bold">{data.upcomingAssignments.length}</p>
+                            </div>
+                            <Clock className="h-8 w-8 text-pink-200" />
+                        </div>
                     </CardContent>
                 </Card>
             </div>
 
-            <div className="grid gap-6 md:grid-cols-7">
-                {/* Main Content Area */}
-                <div className="md:col-span-4 space-y-6">
-                    <CurrentClasses />
+            {/* Main Content Grid */}
+            <div className="grid gap-6 lg:grid-cols-3">
+                {/* Left Column - 2/3 */}
+                <div className="lg:col-span-2 space-y-6">
+                    {/* Resume Learning */}
+                    <Card className="border-l-4 border-l-blue-500">
+                        <CardHeader className="pb-2">
+                            <CardTitle className="text-lg flex items-center gap-2">
+                                <PlayCircle className="h-5 w-5 text-blue-500" />
+                                Resume Learning
+                            </CardTitle>
+                            <CardDescription>Pick up where you left off</CardDescription>
+                        </CardHeader>
+                        <CardContent className="flex items-center justify-between">
+                            {data.latestMaterial ? (
+                                <div className="space-y-1">
+                                    <h4 className="font-semibold text-base">{data.latestMaterial.title}</h4>
+                                    <p className="text-sm text-muted-foreground">{data.latestMaterial.subject}</p>
+                                </div>
+                            ) : (
+                                <p className="text-sm text-muted-foreground">No recent materials. Enroll in subjects to get started!</p>
+                            )}
+                            {data.latestMaterial && (
+                                <Button size="sm" asChild>
+                                    <a href={data.latestMaterial.url} target="_blank" rel="noopener noreferrer">
+                                        Continue
+                                        <ArrowRight className="ml-2 h-4 w-4" />
+                                    </a>
+                                </Button>
+                            )}
+                        </CardContent>
+                    </Card>
 
-                    {/* Upcoming Deadlines List */}
+                    {/* Upcoming Deadlines */}
                     <Card>
                         <CardHeader>
-                            <CardTitle className="flex items-center gap-2">
+                            <CardTitle className="flex items-center gap-2 text-base">
                                 <Clock className="h-5 w-5 text-red-500" />
                                 Upcoming Deadlines
                             </CardTitle>
                         </CardHeader>
                         <CardContent>
                             {data.upcomingAssignments.length === 0 ? (
-                                <p className="text-muted-foreground text-sm">No upcoming assignments.</p>
+                                <p className="text-muted-foreground text-sm">No upcoming assignments. You're all caught up! 🎉</p>
                             ) : (
-                                <div className="space-y-4">
+                                <div className="space-y-3">
                                     {data.upcomingAssignments.map(assignment => (
-                                        <div key={assignment.id} className="flex items-center justify-between p-3 bg-muted/50 rounded-lg border">
+                                        <div key={assignment.id} className="flex items-center justify-between p-3 bg-muted/30 hover:bg-muted/60 transition-colors rounded-lg border">
                                             <div className="space-y-1">
                                                 <p className="font-medium text-sm">{assignment.title}</p>
-                                                <p className="text-xs text-muted-foreground">{assignment.subject}</p>
+                                                <p className="text-xs text-muted-foreground flex items-center gap-1">
+                                                    <span className="w-1.5 h-1.5 rounded-full bg-blue-400" />
+                                                    {assignment.subject}
+                                                </p>
                                             </div>
                                             <div className="text-right">
-                                                <p className="text-xs font-bold text-red-600">
+                                                <p className="text-xs font-bold text-red-600 bg-red-100 dark:bg-red-900/30 px-2 py-1 rounded">
                                                     {new Date(assignment.due_date).toLocaleDateString()}
                                                 </p>
-                                                <Button variant="link" size="sm" className="h-auto p-0 text-xs" asChild>
-                                                    <Link href="/student/assignments">View</Link>
-                                                </Button>
                                             </div>
                                         </div>
                                     ))}
@@ -174,36 +229,50 @@ export default function StudentDashboard() {
                             )}
                         </CardContent>
                     </Card>
-
-                    {/* Recent Announcements - Moved here for better space usage */}
-                    <Card>
-                        <CardHeader className="pb-2">
-                            <CardTitle className="text-base text-blue-600 dark:text-blue-400">Recent Announcements</CardTitle>
-                        </CardHeader>
-                        <CardContent>
-                            <div className="space-y-4">
-                                <AnnouncementList />
-                            </div>
-                        </CardContent>
-                    </Card>
                 </div>
 
-                {/* Sidebar Area */}
-                <div className="md:col-span-3 space-y-6">
-                    <AssignmentCalendar />
-
-                    <Card className="border-blue-100 bg-blue-50/50 dark:bg-blue-900/10 dark:border-blue-800">
-                        <CardHeader className="pb-2">
-                            <CardTitle className="text-base text-blue-600 dark:text-blue-400">Quick Quiz</CardTitle>
-                            <CardDescription className="text-sm">Boost your XP with a quick test.</CardDescription>
+                {/* Right Column - 1/3 */}
+                <div className="space-y-6">
+                    {/* Quick Actions */}
+                    <Card>
+                        <CardHeader className="pb-3">
+                            <CardTitle className="text-base">Quick Actions</CardTitle>
                         </CardHeader>
-                        <CardContent>
-                            <Button className="w-full border-blue-200 hover:bg-blue-100 hover:text-blue-700 dark:border-blue-800 dark:hover:bg-blue-900/50" variant="outline" asChild>
+                        <CardContent className="space-y-2">
+                            <Button variant="outline" className="w-full justify-start" asChild>
                                 <Link href="/student/quiz">
-                                    <FileText className="mr-2 h-4 w-4" />
+                                    <FileText className="mr-2 h-4 w-4 text-blue-500" />
                                     Take a Quiz
                                 </Link>
                             </Button>
+                            <Button variant="outline" className="w-full justify-start" asChild>
+                                <Link href="/student/discussions">
+                                    <MessageSquare className="mr-2 h-4 w-4 text-green-500" />
+                                    Join Discussion
+                                </Link>
+                            </Button>
+                            <Button variant="outline" className="w-full justify-start" asChild>
+                                <Link href="/student/nova">
+                                    <Sparkles className="mr-2 h-4 w-4 text-purple-500" />
+                                    Ask Nova AI
+                                </Link>
+                            </Button>
+                            <Button variant="outline" className="w-full justify-start" asChild>
+                                <Link href="/student/subjects">
+                                    <BookOpen className="mr-2 h-4 w-4 text-orange-500" />
+                                    Browse Subjects
+                                </Link>
+                            </Button>
+                        </CardContent>
+                    </Card>
+
+                    {/* Announcements */}
+                    <Card className="flex flex-col">
+                        <CardHeader className="pb-2">
+                            <CardTitle className="text-base">Announcements</CardTitle>
+                        </CardHeader>
+                        <CardContent className="overflow-y-auto max-h-[250px]">
+                            <AnnouncementList />
                         </CardContent>
                     </Card>
                 </div>

@@ -10,6 +10,8 @@ import { motion, AnimatePresence } from "framer-motion"
 import { cn } from "@/lib/utils"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { Slider } from "@/components/ui/slider"
+import { createClient } from "@/lib/supabase/client"
+import { useToast } from "@/components/ui/use-toast"
 
 interface Question {
     question: string
@@ -29,6 +31,41 @@ export default function QuizPage() {
     const [showResults, setShowResults] = useState(false)
     const [selectedAnswer, setSelectedAnswer] = useState<number | null>(null)
     const [isAnswerChecked, setIsAnswerChecked] = useState(false)
+    const supabase = createClient()
+    const { toast } = useToast()
+
+    const saveResults = async (finalScore: number) => {
+        try {
+            const { data: { user } } = await supabase.auth.getUser()
+            if (!user) {
+                console.error("No user found")
+                return
+            }
+
+            console.log("Saving quiz result for user:", user.id)
+
+            const { data, error } = await supabase
+                .from('quiz_results')
+                .insert({
+                    user_id: user.id,
+                    topic: topic,
+                    score: finalScore,
+                    total_questions: quiz.length,
+                    difficulty: difficulty
+                })
+                .select()
+
+            if (error) {
+                console.error("Error saving quiz result:", error.message, error.code, error.hint, error.details)
+                toast({ title: "Error", description: error.message || "Failed to save results", variant: "destructive" })
+            } else {
+                console.log("Quiz result saved:", data)
+                toast({ title: "Progress Saved!", description: `You earned ${finalScore * 10} XP!` })
+            }
+        } catch (error: any) {
+            console.error("Exception saving quiz result:", error?.message || error)
+        }
+    }
 
     const handleGenerate = async (e: React.FormEvent) => {
         e.preventDefault()
@@ -77,7 +114,10 @@ export default function QuizPage() {
             setSelectedAnswer(null)
             setIsAnswerChecked(false)
         } else {
+            // Quiz finished - calculate final score and save
+            const finalScore = selectedAnswer === quiz[currentQuestion].correctAnswer ? score + 1 : score
             setShowResults(true)
+            saveResults(finalScore)
         }
     }
 

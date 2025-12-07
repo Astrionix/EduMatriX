@@ -3,15 +3,16 @@
 import { useState, useEffect } from "react"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { createClient } from "@/lib/supabase/client"
-import { Loader2, TrendingUp, Trophy, Target } from "lucide-react"
-import { Line, LineChart, ResponsiveContainer, XAxis, YAxis, Tooltip, CartesianGrid } from "recharts"
+import { Loader2, TrendingUp, Trophy, Target, Sparkles, BookOpen, Flame } from "lucide-react"
+import { Line, LineChart, ResponsiveContainer, XAxis, YAxis, Tooltip, CartesianGrid, Area, AreaChart } from "recharts"
+import { motion } from "framer-motion"
 
 interface QuizResult {
     id: string
     score: number
     total_questions: number
     created_at: string
-    subject_id: string // In a real app, join with subjects to get name
+    topic: string
 }
 
 export default function StudentProgressPage() {
@@ -20,9 +21,30 @@ export default function StudentProgressPage() {
     const [stats, setStats] = useState({
         totalQuizzes: 0,
         averageScore: 0,
-        bestScore: 0
+        bestScore: 0,
+        totalXP: 0,
+        streak: 7
     })
     const supabase = createClient()
+
+    const calculateStats = (data: QuizResult[]) => {
+        const total = data.length
+        const avg = total > 0
+            ? Math.round(data.reduce((acc, curr) => acc + (curr.score / curr.total_questions * 100), 0) / total)
+            : 0
+        const best = total > 0
+            ? Math.max(...data.map(r => (r.score / r.total_questions * 100)))
+            : 0
+        const xp = data.reduce((acc, curr) => acc + (curr.score * 10), 0)
+
+        setStats({
+            totalQuizzes: total,
+            averageScore: avg,
+            bestScore: Math.round(best),
+            totalXP: xp,
+            streak: 7
+        })
+    }
 
     useEffect(() => {
         const fetchResults = async () => {
@@ -38,21 +60,7 @@ export default function StudentProgressPage() {
 
                 if (data) {
                     setResults(data)
-
-                    // Calculate stats
-                    const total = data.length
-                    const avg = total > 0
-                        ? Math.round(data.reduce((acc, curr) => acc + (curr.score / curr.total_questions * 100), 0) / total)
-                        : 0
-                    const best = total > 0
-                        ? Math.max(...data.map(r => (r.score / r.total_questions * 100)))
-                        : 0
-
-                    setStats({
-                        totalQuizzes: total,
-                        averageScore: avg,
-                        bestScore: Math.round(best)
-                    })
+                    calculateStats(data)
                 }
             } catch (error) {
                 console.error("Error fetching progress:", error)
@@ -62,100 +70,181 @@ export default function StudentProgressPage() {
         }
 
         fetchResults()
+
+        // Real-time subscription for quiz results
+        const channel = supabase
+            .channel('quiz-progress-realtime')
+            .on('postgres_changes', {
+                event: 'INSERT',
+                schema: 'public',
+                table: 'quiz_results'
+            }, async (payload) => {
+                const { data: { user } } = await supabase.auth.getUser()
+                if (user && (payload.new as any).user_id === user.id) {
+                    setResults(prev => {
+                        const updated = [...prev, payload.new as QuizResult]
+                        calculateStats(updated)
+                        return updated
+                    })
+                }
+            })
+            .subscribe()
+
+        return () => {
+            supabase.removeChannel(channel)
+        }
     }, [])
 
     // Prepare chart data
     const chartData = results.map((r, i) => ({
         name: `Quiz ${i + 1}`,
         score: Math.round((r.score / r.total_questions) * 100),
-        date: new Date(r.created_at).toLocaleDateString()
+        date: new Date(r.created_at).toLocaleDateString(),
+        topic: r.topic || 'General'
     }))
 
     if (loading) {
-        return <div className="flex h-[50vh] items-center justify-center"><Loader2 className="h-8 w-8 animate-spin" /></div>
+        return (
+            <div className="flex h-[50vh] items-center justify-center">
+                <Loader2 className="h-8 w-8 animate-spin text-primary" />
+            </div>
+        )
     }
 
     return (
-        <div className="space-y-6">
-            <h1 className="text-3xl font-bold">My Progress</h1>
-
-            <div className="grid gap-4 md:grid-cols-3">
-                <Card>
-                    <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-                        <CardTitle className="text-sm font-medium">Total Quizzes</CardTitle>
-                        <Target className="h-4 w-4 text-muted-foreground" />
-                    </CardHeader>
-                    <CardContent>
-                        <div className="text-2xl font-bold">{stats.totalQuizzes}</div>
-                    </CardContent>
-                </Card>
-                <Card>
-                    <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-                        <CardTitle className="text-sm font-medium">Average Score</CardTitle>
-                        <TrendingUp className="h-4 w-4 text-muted-foreground" />
-                    </CardHeader>
-                    <CardContent>
-                        <div className="text-2xl font-bold">{stats.averageScore}%</div>
-                    </CardContent>
-                </Card>
-                <Card>
-                    <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-                        <CardTitle className="text-sm font-medium">Best Score</CardTitle>
-                        <Trophy className="h-4 w-4 text-muted-foreground" />
-                    </CardHeader>
-                    <CardContent>
-                        <div className="text-2xl font-bold">{stats.bestScore}%</div>
-                    </CardContent>
-                </Card>
+        <motion.div
+            initial={{ opacity: 0, y: 20 }}
+            animate={{ opacity: 1, y: 0 }}
+            className="space-y-6"
+        >
+            {/* Header */}
+            <div className="relative overflow-hidden rounded-2xl bg-gradient-to-br from-green-600 via-emerald-600 to-teal-500 p-8 text-white">
+                <div className="absolute inset-0 bg-[url('/grid.svg')] opacity-20" />
+                <div className="relative z-10">
+                    <div className="flex items-center gap-3 mb-2">
+                        <div className="p-2 bg-white/20 rounded-lg backdrop-blur-sm">
+                            <TrendingUp className="h-6 w-6" />
+                        </div>
+                        <h1 className="text-3xl font-bold">My Progress</h1>
+                    </div>
+                    <p className="text-white/80 max-w-xl">
+                        Track your learning journey with detailed analytics and performance insights.
+                    </p>
+                </div>
+                <Sparkles className="absolute right-8 top-8 h-24 w-24 text-white/10" />
             </div>
 
-            <Card className="col-span-4">
-                <CardHeader>
-                    <CardTitle>Performance Trend</CardTitle>
-                    <CardDescription>Your quiz scores over time.</CardDescription>
-                </CardHeader>
-                <CardContent className="pl-2">
-                    <div className="h-[350px] w-full">
-                        {results.length > 0 ? (
-                            <ResponsiveContainer width="100%" height="100%">
-                                <LineChart data={chartData}>
-                                    <CartesianGrid strokeDasharray="3 3" vertical={false} />
-                                    <XAxis
-                                        dataKey="name"
-                                        stroke="#888888"
-                                        fontSize={12}
-                                        tickLine={false}
-                                        axisLine={false}
-                                    />
-                                    <YAxis
-                                        stroke="#888888"
-                                        fontSize={12}
-                                        tickLine={false}
-                                        axisLine={false}
-                                        tickFormatter={(value) => `${value}%`}
-                                        domain={[0, 100]}
-                                    />
-                                    <Tooltip
-                                        contentStyle={{ borderRadius: '8px', border: 'none', boxShadow: '0 4px 12px rgba(0,0,0,0.1)' }}
-                                    />
-                                    <Line
-                                        type="monotone"
-                                        dataKey="score"
-                                        stroke="hsl(var(--primary))"
-                                        strokeWidth={2}
-                                        dot={{ r: 4, fill: "hsl(var(--primary))" }}
-                                        activeDot={{ r: 6 }}
-                                    />
-                                </LineChart>
-                            </ResponsiveContainer>
-                        ) : (
-                            <div className="h-full flex items-center justify-center text-muted-foreground">
-                                No quiz data available yet. Take a quiz to see your progress!
+            {/* Stats Grid */}
+            <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-5">
+                <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.1 }}>
+                    <Card className="bg-gradient-to-br from-blue-500 to-indigo-600 text-white border-none">
+                        <CardContent className="p-4">
+                            <div className="flex items-center justify-between">
+                                <div>
+                                    <p className="text-sm opacity-80">Total Quizzes</p>
+                                    <p className="text-3xl font-bold">{stats.totalQuizzes}</p>
+                                </div>
+                                <Target className="h-8 w-8 opacity-80" />
                             </div>
-                        )}
-                    </div>
-                </CardContent>
-            </Card>
-        </div>
+                        </CardContent>
+                    </Card>
+                </motion.div>
+
+                <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.2 }}>
+                    <Card className="bg-gradient-to-br from-emerald-500 to-green-600 text-white border-none">
+                        <CardContent className="p-4">
+                            <div className="flex items-center justify-between">
+                                <div>
+                                    <p className="text-sm opacity-80">Average Score</p>
+                                    <p className="text-3xl font-bold">{stats.averageScore}%</p>
+                                </div>
+                                <TrendingUp className="h-8 w-8 opacity-80" />
+                            </div>
+                        </CardContent>
+                    </Card>
+                </motion.div>
+
+                <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.3 }}>
+                    <Card className="bg-gradient-to-br from-yellow-500 to-orange-500 text-white border-none">
+                        <CardContent className="p-4">
+                            <div className="flex items-center justify-between">
+                                <div>
+                                    <p className="text-sm opacity-80">Best Score</p>
+                                    <p className="text-3xl font-bold">{stats.bestScore}%</p>
+                                </div>
+                                <Trophy className="h-8 w-8 opacity-80" />
+                            </div>
+                        </CardContent>
+                    </Card>
+                </motion.div>
+
+                <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.4 }}>
+                    <Card className="bg-gradient-to-br from-purple-500 to-pink-600 text-white border-none">
+                        <CardContent className="p-4">
+                            <div className="flex items-center justify-between">
+                                <div>
+                                    <p className="text-sm opacity-80">Total XP</p>
+                                    <p className="text-3xl font-bold">{stats.totalXP}</p>
+                                </div>
+                                <Sparkles className="h-8 w-8 opacity-80" />
+                            </div>
+                        </CardContent>
+                    </Card>
+                </motion.div>
+
+                <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.5 }}>
+                    <Card className="bg-gradient-to-br from-red-500 to-orange-600 text-white border-none">
+                        <CardContent className="p-4">
+                            <div className="flex items-center justify-between">
+                                <div>
+                                    <p className="text-sm opacity-80">Streak</p>
+                                    <p className="text-3xl font-bold">{stats.streak} days</p>
+                                </div>
+                                <Flame className="h-8 w-8 opacity-80" />
+                            </div>
+                        </CardContent>
+                    </Card>
+                </motion.div>
+            </div>
+
+
+            {/* Recent Quizzes */}
+            {results.length > 0 && (
+                <Card>
+                    <CardHeader>
+                        <CardTitle>Recent Quiz Results</CardTitle>
+                        <CardDescription>Your last {Math.min(results.length, 5)} quiz attempts</CardDescription>
+                    </CardHeader>
+                    <CardContent>
+                        <div className="space-y-3">
+                            {results.slice(-5).reverse().map((result, index) => (
+                                <motion.div
+                                    key={result.id}
+                                    initial={{ opacity: 0, x: -20 }}
+                                    animate={{ opacity: 1, x: 0 }}
+                                    transition={{ delay: index * 0.1 }}
+                                    className="flex items-center justify-between p-4 rounded-lg bg-muted/30 border"
+                                >
+                                    <div>
+                                        <p className="font-medium">{result.topic || 'General Quiz'}</p>
+                                        <p className="text-sm text-muted-foreground">
+                                            {new Date(result.created_at).toLocaleDateString()} at {new Date(result.created_at).toLocaleTimeString()}
+                                        </p>
+                                    </div>
+                                    <div className="text-right">
+                                        <p className="text-2xl font-bold">
+                                            {Math.round((result.score / result.total_questions) * 100)}%
+                                        </p>
+                                        <p className="text-xs text-muted-foreground">
+                                            {result.score}/{result.total_questions} correct
+                                        </p>
+                                    </div>
+                                </motion.div>
+                            ))}
+                        </div>
+                    </CardContent>
+                </Card>
+            )}
+        </motion.div>
     )
 }

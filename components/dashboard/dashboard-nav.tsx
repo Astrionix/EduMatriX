@@ -17,7 +17,6 @@ export function DashboardNav({ role }: DashboardNavProps) {
             { href: "/student/dashboard", label: "Dashboard", icon: LayoutDashboard },
             { href: "/student/subjects", label: "My Subjects", icon: BookOpen },
             { href: "/student/assignments", label: "Assignments", icon: FileText },
-            { href: "/student/timetable", label: "Timetable", icon: Calendar },
             { href: "/student/discussions", label: "Discussions", icon: MessageSquare },
             { href: "/student/nova", label: "Nova AI", icon: Sparkles },
             { href: "/student/quiz", label: "AI Quiz", icon: FileText },
@@ -25,7 +24,6 @@ export function DashboardNav({ role }: DashboardNavProps) {
         ],
         faculty: [
             { href: "/faculty/dashboard", label: "Dashboard", icon: LayoutDashboard },
-            { href: "/faculty/subjects", label: "Manage Subjects", icon: BookOpen },
             { href: "/faculty/assignments", label: "Assignments", icon: FileText },
             { href: "/faculty/discussions", label: "Discussions", icon: MessageSquare },
             { href: "/faculty/uploads", label: "Uploads", icon: Upload },
@@ -34,8 +32,8 @@ export function DashboardNav({ role }: DashboardNavProps) {
         ],
         hod: [
             { href: "/hod/dashboard", label: "Dashboard", icon: LayoutDashboard },
+            { href: "/hod/subjects", label: "Manage Subjects", icon: BookOpen },
             { href: "/hod/users", label: "Manage Users", icon: Users },
-            { href: "/hod/timetable", label: "Timetable", icon: Calendar },
             { href: "/hod/analytics", label: "Analytics", icon: FileText },
             { href: "/hod/broadcast", label: "Broadcasts", icon: Upload },
         ],
